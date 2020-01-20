@@ -73,14 +73,17 @@ type Stats struct {
 
 // Parameters to pass to filters-initializer goroutine
 type filtersInitializerParams struct {
-	filters map[int]string
+	filters      []Filter
+	whiteFilters []Filter
 }
 
 // Dnsfilter holds added rules and performs hostname matches against the rules
 type Dnsfilter struct {
-	rulesStorage    *filterlist.RuleStorage
-	filteringEngine *urlfilter.DNSEngine
-	engineLock      sync.RWMutex
+	rulesStorage         *filterlist.RuleStorage
+	filteringEngine      *urlfilter.DNSEngine
+	rulesStorageWhite    *filterlist.RuleStorage
+	filteringEngineWhite *urlfilter.DNSEngine
+	engineLock           sync.RWMutex
 
 	parentalServer       string // access via methods
 	safeBrowsingServer   string // access via methods
@@ -178,10 +181,11 @@ func (d *Dnsfilter) WriteDiskConfig(c *Config) {
 // SetFilters - set new filters (synchronously or asynchronously)
 // When filters are set asynchronously, the old filters continue working until the new filters are ready.
 //  In this case the caller must ensure that the old filter files are intact.
-func (d *Dnsfilter) SetFilters(filters map[int]string, async bool) error {
+func (d *Dnsfilter) SetFilters(filters []Filter, whiteFilters []Filter, async bool) error {
 	if async {
 		params := filtersInitializerParams{
-			filters: filters,
+			filters:      filters,
+			whiteFilters: whiteFilters,
 		}
 
 		d.filtersInitializerLock.Lock() // prevent multiple writers from adding more than 1 task
@@ -201,7 +205,7 @@ func (d *Dnsfilter) SetFilters(filters map[int]string, async bool) error {
 		return nil
 	}
 
-	err := d.initFiltering(filters)
+	err := d.initFiltering(filters, whiteFilters)
 	if err != nil {
 		log.Error("Can't initialize filtering subsystem: %s", err)
 		return err
@@ -214,7 +218,7 @@ func (d *Dnsfilter) SetFilters(filters map[int]string, async bool) error {
 func (d *Dnsfilter) filtersInitializer() {
 	for {
 		params := <-d.filtersInitializerChan
-		err := d.initFiltering(params.filters)
+		err := d.initFiltering(params.filters, params.whiteFilters)
 		if err != nil {
 			log.Error("Can't initialize filtering subsystem: %s", err)
 			continue
@@ -224,8 +228,15 @@ func (d *Dnsfilter) filtersInitializer() {
 
 // Close - close the object
 func (d *Dnsfilter) Close() {
+	d.reset()
+}
+
+func (d *Dnsfilter) reset() {
 	if d.rulesStorage != nil {
 		_ = d.rulesStorage.Close()
+	}
+	if d.rulesStorageWhite != nil {
+		d.rulesStorageWhite.Close()
 	}
 }
 
@@ -265,7 +276,7 @@ func (d *Dnsfilter) CheckHostRules(host string, qtype uint16, setts *RequestFilt
 		return Result{}, nil
 	}
 
-	return d.matchHost(host, qtype, setts.ClientTags)
+	return d.matchHost(host, qtype, setts.ClientTags, false)
 }
 
 // CheckHost tries to match the host against filtering rules,
@@ -287,9 +298,18 @@ func (d *Dnsfilter) CheckHost(host string, qtype uint16, setts *RequestFiltering
 
 	// try filter lists first
 	if setts.FilteringEnabled {
-		result, err = d.matchHost(host, qtype, setts.ClientTags)
+		result, err = d.matchHost(host, qtype, setts.ClientTags, false)
 		if err != nil {
 			return result, err
+		}
+		if result.Reason == FilteredBlackList {
+			resultWhite, err := d.matchHost(host, qtype, setts.ClientTags, true)
+			if err != nil {
+				return Result{}, err
+			}
+			if resultWhite.Reason.Matched() {
+				result = Result{}
+			}
 		}
 		if result.Reason.Matched() {
 			return result, nil
@@ -415,43 +435,42 @@ func fileExists(fn string) bool {
 	return true
 }
 
-// Initialize urlfilter objects
-func (d *Dnsfilter) initFiltering(filters map[int]string) error {
+func createFilteringEngine(filters []Filter) (*filterlist.RuleStorage, *urlfilter.DNSEngine, error) {
 	listArray := []filterlist.RuleList{}
-	for id, dataOrFilePath := range filters {
+	for _, f := range filters {
 		var list filterlist.RuleList
 
-		if id == 0 {
+		if f.ID == 0 {
 			list = &filterlist.StringRuleList{
 				ID:             0,
-				RulesText:      dataOrFilePath,
+				RulesText:      string(f.Data),
 				IgnoreCosmetic: true,
 			}
 
-		} else if !fileExists(dataOrFilePath) {
+		} else if !fileExists(f.FilePath) {
 			list = &filterlist.StringRuleList{
-				ID:             id,
+				ID:             int(f.ID),
 				IgnoreCosmetic: true,
 			}
 
 		} else if runtime.GOOS == "windows" {
 			// On Windows we don't pass a file to urlfilter because
 			//  it's difficult to update this file while it's being used.
-			data, err := ioutil.ReadFile(dataOrFilePath)
+			data, err := ioutil.ReadFile(f.FilePath)
 			if err != nil {
-				return fmt.Errorf("ioutil.ReadFile(): %s: %s", dataOrFilePath, err)
+				return nil, nil, fmt.Errorf("ioutil.ReadFile(): %s: %s", f.FilePath, err)
 			}
 			list = &filterlist.StringRuleList{
-				ID:             id,
+				ID:             int(f.ID),
 				RulesText:      string(data),
 				IgnoreCosmetic: true,
 			}
 
 		} else {
 			var err error
-			list, err = filterlist.NewFileRuleList(id, dataOrFilePath, true)
+			list, err = filterlist.NewFileRuleList(int(f.ID), f.FilePath, true)
 			if err != nil {
-				return fmt.Errorf("filterlist.NewFileRuleList(): %s: %s", dataOrFilePath, err)
+				return nil, nil, fmt.Errorf("filterlist.NewFileRuleList(): %s: %s", f.FilePath, err)
 			}
 		}
 		listArray = append(listArray, list)
@@ -459,16 +478,28 @@ func (d *Dnsfilter) initFiltering(filters map[int]string) error {
 
 	rulesStorage, err := filterlist.NewRuleStorage(listArray)
 	if err != nil {
-		return fmt.Errorf("filterlist.NewRuleStorage(): %s", err)
+		return nil, nil, fmt.Errorf("filterlist.NewRuleStorage(): %s", err)
 	}
 	filteringEngine := urlfilter.NewDNSEngine(rulesStorage)
+	return rulesStorage, filteringEngine, nil
+}
 
+// Initialize urlfilter objects
+func (d *Dnsfilter) initFiltering(filters []Filter, whiteFilters []Filter) error {
 	d.engineLock.Lock()
-	if d.rulesStorage != nil {
-		d.rulesStorage.Close()
+	d.reset()
+	rulesStorage, filteringEngine, err := createFilteringEngine(filters)
+	if err != nil {
+		return err
+	}
+	rulesStorageWhite, filteringEngineWhite, err := createFilteringEngine(whiteFilters)
+	if err != nil {
+		return err
 	}
 	d.rulesStorage = rulesStorage
 	d.filteringEngine = filteringEngine
+	d.rulesStorageWhite = rulesStorageWhite
+	d.filteringEngineWhite = filteringEngineWhite
 	d.engineLock.Unlock()
 	log.Debug("initialized filtering engine")
 
@@ -476,16 +507,20 @@ func (d *Dnsfilter) initFiltering(filters map[int]string) error {
 }
 
 // matchHost is a low-level way to check only if hostname is filtered by rules, skipping expensive safebrowsing and parental lookups
-func (d *Dnsfilter) matchHost(host string, qtype uint16, ctags []string) (Result, error) {
+func (d *Dnsfilter) matchHost(host string, qtype uint16, ctags []string, white bool) (Result, error) {
 	d.engineLock.RLock()
 	// Keep in mind that this lock must be held no just when calling Match()
 	//  but also while using the rules returned by it.
 	defer d.engineLock.RUnlock()
-	if d.filteringEngine == nil {
+	engine := d.filteringEngine
+	if white {
+		engine = d.filteringEngineWhite
+	}
+	if engine == nil {
 		return Result{}, nil
 	}
 
-	rr, ok := d.filteringEngine.Match(host, ctags)
+	rr, ok := engine.Match(host, ctags)
 	if !ok {
 		return Result{}, nil
 	}
@@ -550,7 +585,7 @@ func (d *Dnsfilter) matchHost(host string, qtype uint16, ctags []string) (Result
 }
 
 // New creates properly initialized DNS Filter that is ready to be used
-func New(c *Config, filters map[int]string) *Dnsfilter {
+func New(c *Config, filters []Filter) *Dnsfilter {
 
 	if c != nil {
 		cacheConf := cache.Config{
@@ -589,7 +624,7 @@ func New(c *Config, filters map[int]string) *Dnsfilter {
 	}
 
 	if filters != nil {
-		err := d.initFiltering(filters)
+		err := d.initFiltering(filters, nil)
 		if err != nil {
 			log.Error("Can't initialize filtering subsystem: %s", err)
 			d.Close()

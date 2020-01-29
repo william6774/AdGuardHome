@@ -44,10 +44,10 @@ export const addFilterRequest = createAction('ADD_FILTER_REQUEST');
 export const addFilterFailure = createAction('ADD_FILTER_FAILURE');
 export const addFilterSuccess = createAction('ADD_FILTER_SUCCESS');
 
-export const addFilter = (url, name) => async (dispatch) => {
+export const addFilter = (url, name, whitelist) => async (dispatch) => {
     dispatch(addFilterRequest());
     try {
-        await apiClient.addFilter(url, name);
+        await apiClient.addFilter(url, name, whitelist);
         dispatch(addFilterSuccess(url));
         dispatch(toggleFilteringModal());
         dispatch(addSuccessToast('filter_added_successfully'));

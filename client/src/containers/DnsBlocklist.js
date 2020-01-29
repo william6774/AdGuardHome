@@ -9,9 +9,8 @@ import {
     refreshFilters,
     handleRulesChange,
     editFilter,
-    checkHost,
 } from '../actions/filtering';
-import Filters from '../components/Filters';
+import DnsBlocklist from '../components/Filters/DnsBlocklist';
 
 const mapStateToProps = (state) => {
     const { filtering } = state;
@@ -29,10 +28,9 @@ const mapDispatchToProps = {
     refreshFilters,
     handleRulesChange,
     editFilter,
-    checkHost,
 };
 
 export default connect(
     mapStateToProps,
     mapDispatchToProps,
-)(Filters);
+)(DnsBlocklist);

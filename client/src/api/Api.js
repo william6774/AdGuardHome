@@ -94,12 +94,13 @@ class Api {
         return this.makeRequest(path, method);
     }
 
-    addFilter(url, name) {
+    addFilter(url, name, whitelist = false) {
         const { path, method } = this.FILTERING_ADD_FILTER;
         const config = {
             data: {
                 name,
                 url,
+                whitelist,
             },
         };
         return this.makeRequest(path, method, config);

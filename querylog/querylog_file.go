@@ -256,15 +256,15 @@ func (r *Reader) BeginReadPrev(count uint64) {
 }
 
 // Perform binary seek
-// Return 0: success;  1: seek reqiured;  -1: error
+// Return 0: success;  1: seek required;  -1: error
 func (fs *fileSeeker) seekBinary(cur uint64) int32 {
 	log.Debug("QueryLog: seek: tgt=%x cur=%x, %x: [%x..%x]", fs.target, cur, fs.pos, fs.lo, fs.hi)
 
 	off := uint64(0)
-	if fs.pos >= fs.lo && fs.pos < fs.hi {
+	if fs.pos >= fs.lo && fs.pos <= fs.hi {
 		if cur == fs.target {
 			return 0
-		} else if cur < fs.target {
+		} else if cur < fs.target && cur != 0 {
 			fs.lo = fs.pos + 1
 		} else {
 			fs.hi = fs.pos
@@ -346,6 +346,7 @@ func (r *Reader) prepareRead() bool {
 		r.fseeker = fileSeeker{}
 		r.fseeker.target = uint64(r.olderThan)
 		r.fseeker.hi = fsize
+
 		rc := r.fseeker.seekBinary(0)
 		r.fpos = r.fseeker.pos
 		if rc == 1 {
@@ -358,7 +359,10 @@ func (r *Reader) prepareRead() bool {
 	}
 	r.nSeekRequests++
 
-	if !r.seekToNewLine() {
+	if off == 0 {
+		// Just init the reader if we're at the very beginning of the file
+		r.reader = bufio.NewReader(r.f)
+	} else if !r.seekToNewLine() {
 		return false
 	}
 	r.fseeker.pos = r.fpos
@@ -670,7 +674,6 @@ func (r *Reader) Next() *logEntry { // nolint
 		t := tm.UnixNano()
 
 		if r.seeking {
-
 			r.reader = nil
 			rr := r.fseeker.seekBinary(uint64(t))
 			r.fpos = r.fseeker.pos

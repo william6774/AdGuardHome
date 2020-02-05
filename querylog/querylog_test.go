@@ -31,10 +31,21 @@ func TestQueryLog(t *testing.T) {
 
 	// add disk entries
 	addEntry(l, "example.org", "1.2.3.4", "0.1.2.3")
+
+	// write to disk
+	err := l.flushLogBuffer(true)
+	assert.Nil(t, err)
+
+	// make sure that we have two files
+	err = l.rotate()
+	assert.Nil(t, err)
+
+	// add new record to the second file
 	addEntry(l, "example.org", "1.2.3.4", "0.1.2.3")
 
 	// write to disk
-	l.flushLogBuffer(true)
+	err = l.flushLogBuffer(true)
+	assert.Nil(t, err)
 
 	// add memory entries
 	addEntry(l, "test.example.org", "2.2.3.4", "0.1.2.4")
@@ -45,7 +56,7 @@ func TestQueryLog(t *testing.T) {
 	}
 	d := l.getData(params)
 	mdata := d["data"].([]map[string]interface{})
-	assert.True(t, len(mdata) == 2)
+	assert.Equal(t, 2, len(mdata))
 	assert.True(t, checkEntry(t, mdata[0], "test.example.org", "2.2.3.4", "0.1.2.4"))
 	assert.True(t, checkEntry(t, mdata[1], "example.org", "1.2.3.4", "0.1.2.3"))
 

@@ -152,7 +152,7 @@ export const SETTINGS_URLS = {
 };
 
 export const FILTERS_URLS = {
-    dns_blocklist: '/dns_blocklist',
+    dns_blocklist: '/filters',
     dns_whitelist: '/dns_whitelist',
     custom_rules: '/custom_rules',
 };

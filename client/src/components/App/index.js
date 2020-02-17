@@ -111,7 +111,7 @@ class App extends Component {
                                 <Route path="/encryption" component={Encryption} />
                                 <Route path="/dhcp" component={Dhcp} />
                                 <Route path="/clients" component={Clients} />
-                                <Route path="/dns_blocklist" component={DnsBlocklist} />
+                                <Route path="/filters" component={DnsBlocklist} />
                                 <Route path="/dns_whitelist" component={DnsWhitelist} />
                                 <Route path="/custom_rules" component={CustomRules} />
                                 <Route path="/logs" component={Logs} />

@@ -30,7 +30,8 @@ func TestQueryLog(t *testing.T) {
 	l := newQueryLog(conf)
 
 	// add disk entries
-	addEntry(l, "example.org", "1.2.3.4", "0.1.2.3")
+	addEntry(l, "example.com", "1.2.3.4", "1.1.1.1")
+	addEntry(l, "example.com", "1.2.3.4", "1.1.1.2")
 
 	// write to disk
 	err := l.flushLogBuffer(true)
@@ -42,6 +43,7 @@ func TestQueryLog(t *testing.T) {
 
 	// add new record to the second file
 	addEntry(l, "example.org", "1.2.3.4", "0.1.2.3")
+	addEntry(l, "example2.org", "1.2.3.4", "2.2.2.3")
 
 	// write to disk
 	err = l.flushLogBuffer(true)
@@ -56,9 +58,12 @@ func TestQueryLog(t *testing.T) {
 	}
 	d := l.getData(params)
 	mdata := d["data"].([]map[string]interface{})
-	assert.Equal(t, 2, len(mdata))
+	assert.Equal(t, 3, len(mdata))
 	assert.True(t, checkEntry(t, mdata[0], "test.example.org", "2.2.3.4", "0.1.2.4"))
-	assert.True(t, checkEntry(t, mdata[1], "example.org", "1.2.3.4", "0.1.2.3"))
+	assert.True(t, checkEntry(t, mdata[1], "example2.org", "1.2.3.4", "2.2.2.3"))
+	assert.True(t, checkEntry(t, mdata[2], "example.org", "1.2.3.4", "0.1.2.3"))
+	// assert.True(t, checkEntry(t, mdata[3], "example.com", "1.2.3.4", "1.1.1.2"))
+	// assert.True(t, checkEntry(t, mdata[4], "example.com", "1.2.3.4", "1.1.1.1"))
 
 	// search by domain (strict)
 	params = getDataParams{

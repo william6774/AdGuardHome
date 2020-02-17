@@ -261,10 +261,10 @@ func (fs *fileSeeker) seekBinary(cur uint64) int32 {
 	log.Debug("QueryLog: seek: tgt=%x cur=%x, %x: [%x..%x]", fs.target, cur, fs.pos, fs.lo, fs.hi)
 
 	off := uint64(0)
-	if fs.pos >= fs.lo && fs.pos <= fs.hi {
+	if fs.pos >= fs.lo && fs.pos < fs.hi {
 		if cur == fs.target {
 			return 0
-		} else if cur < fs.target && cur != 0 {
+		} else if cur < fs.target {
 			fs.lo = fs.pos + 1
 		} else {
 			fs.hi = fs.pos

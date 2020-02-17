@@ -330,6 +330,13 @@ func (l *queryLog) getData(params getDataParams) map[string]interface{} {
 
 		if a != nil {
 			jsonEntry["status"] = dns.RcodeToString[a.Rcode]
+
+			opt := a.IsEdns0()
+			dnssecOk := false
+			if opt != nil {
+				dnssecOk = opt.Do()
+			}
+			jsonEntry["answer_dnssec"] = dnssecOk
 		}
 		if len(entry.Result.Rule) > 0 {
 			jsonEntry["rule"] = entry.Result.Rule

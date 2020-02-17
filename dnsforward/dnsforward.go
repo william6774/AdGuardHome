@@ -136,6 +136,8 @@ type FilteringConfig struct {
 
 	EnableEDNSClientSubnet bool `yaml:"edns_client_subnet"` // Enable EDNS Client Subnet option
 
+	EnableDNSSEC bool `yaml:"enable_dnssec"` // Set DNSSEC flag in outcoming DNS request
+
 	// Respond with an empty answer to all AAAA requests
 	AAAADisabled bool `yaml:"aaaa_disabled"`
 
@@ -581,6 +583,16 @@ func processUpstream(ctx *dnsContext) int {
 		if len(upstreams) > 0 {
 			log.Debug("Using custom upstreams for %s", clientIP)
 			d.Upstreams = upstreams
+		}
+	}
+
+	if s.conf.EnableDNSSEC {
+		opt := d.Req.IsEdns0()
+		if opt == nil {
+			log.Debug("DNS: Adding OPT record with DNSSEC flag")
+			d.Req.SetEdns0(4096, true)
+		} else {
+			opt.SetDo(true)
 		}
 	}
 

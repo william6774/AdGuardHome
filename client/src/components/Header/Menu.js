@@ -48,11 +48,11 @@ class Menu extends Component {
         this.props.toggleMenuOpen();
     };
 
-    getActiveClassForSettings = (URLS) => {
+    getActiveClassForDropdown = (URLS) => {
         const { pathname } = this.props.location;
-        const isSettingsPage = pathname in URLS;
+        const isActivePage = Object.values(URLS).some(item => item === pathname);
 
-        return isSettingsPage ? 'active' : '';
+        return isActivePage ? 'active' : '';
     };
 
     getNavLink = ({
@@ -77,7 +77,7 @@ class Menu extends Component {
             <Dropdown
                 label={this.props.t(label)}
                 baseClassName={`dropdown nav-item order-${order}`}
-                controlClassName={`nav-link ${this.getActiveClassForSettings(URLS)}`}
+                controlClassName={`nav-link ${this.getActiveClassForDropdown(URLS)}`}
                 icon={icon}>
                 {ITEMS.map(item => (
                     this.getNavLink({
@@ -98,7 +98,11 @@ class Menu extends Component {
                 <div className={menuClass}>
                     <ul className="nav nav-tabs border-0 flex-column flex-lg-row flex-nowrap">
                         {MENU_ITEMS.map(item => (
-                            <li className={`nav-item order-${item.order}`} key={item.text} onClick={this.toggleMenu}>
+                            <li
+                                className={`nav-item order-${item.order}`}
+                                key={item.text}
+                                onClick={this.toggleMenu}
+                            >
                                 {this.getNavLink({ ...item, className: 'nav-link' })}
                             </li>
                         ))}

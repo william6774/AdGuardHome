@@ -168,7 +168,7 @@ func registerControlHandlers() {
 	httpRegister(http.MethodGet, "/control/status", handleStatus)
 	httpRegister(http.MethodPost, "/control/i18n/change_language", handleI18nChangeLanguage)
 	httpRegister(http.MethodGet, "/control/i18n/current_language", handleI18nCurrentLanguage)
-	http.HandleFunc("/control/version.json", optionalAuth(handleGetVersionJSON))
+	http.HandleFunc("/control/version.json", postInstall(optionalAuth(handleGetVersionJSON)))
 	httpRegister(http.MethodPost, "/control/update", handleUpdate)
 
 	httpRegister("GET", "/control/profile", handleGetProfile)
@@ -178,14 +178,14 @@ func registerControlHandlers() {
 	RegisterBlockedServicesHandlers()
 	RegisterAuthHandlers()
 
-	http.HandleFunc("/dns-query", handleDOH)
+	http.HandleFunc("/dns-query", postInstall(handleDOH))
 }
 
 func httpRegister(method string, url string, handler func(http.ResponseWriter, *http.Request)) {
 	if Context.firstRun {
 		panic("Context.firstRun")
 	}
-	http.Handle(url, optionalAuthHandler(gziphandler.GzipHandler(ensureHandler(method, handler))))
+	http.Handle(url, postInstallHandler(optionalAuthHandler(gziphandler.GzipHandler(ensureHandler(method, handler)))))
 }
 
 // ----------------------------------
@@ -262,12 +262,14 @@ func preInstallHandler(handler http.Handler) http.Handler {
 // it also enforces HTTPS if it is enabled and configured
 func postInstall(handler func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+
 		if Context.firstRun &&
 			!strings.HasPrefix(r.URL.Path, "/install.") &&
 			r.URL.Path != "/favicon.png" {
-			http.Redirect(w, r, "/install.html", http.StatusSeeOther) // should not be cacheable
+			http.Redirect(w, r, "/install.html", http.StatusFound)
 			return
 		}
+
 		// enforce https?
 		if config.TLS.ForceHTTPS && r.TLS == nil && config.TLS.Enabled && config.TLS.PortHTTPS != 0 && Context.httpsServer.server != nil {
 			// yes, and we want host from host:port
@@ -286,6 +288,7 @@ func postInstall(handler func(http.ResponseWriter, *http.Request)) func(http.Res
 			http.Redirect(w, r, newURL.String(), http.StatusTemporaryRedirect)
 			return
 		}
+
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		handler(w, r)
 	}

@@ -21,8 +21,7 @@ class DnsBlocklist extends Component {
         const { filtering } = this.props;
 
         if (filtering.modalType === MODAL_TYPE.EDIT) {
-            const data = { ...values };
-            this.props.editFilter(filtering.modalFilterUrl, data);
+            this.props.editFilter(filtering.modalFilterUrl, values);
         } else {
             this.props.addFilter(url, name);
         }

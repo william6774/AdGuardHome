@@ -22,8 +22,7 @@ class DnsWhitelist extends Component {
         const whitelist = true;
 
         if (filtering.modalType === MODAL_TYPE.EDIT) {
-            const data = { ...values };
-            this.props.editFilter(filtering.modalFilterUrl, data, whitelist);
+            this.props.editFilter(filtering.modalFilterUrl, values, whitelist);
         } else {
             this.props.addFilter(url, name, whitelist);
         }

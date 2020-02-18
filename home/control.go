@@ -182,9 +182,6 @@ func registerControlHandlers() {
 }
 
 func httpRegister(method string, url string, handler func(http.ResponseWriter, *http.Request)) {
-	if Context.firstRun {
-		panic("Context.firstRun")
-	}
 	http.Handle(url, postInstallHandler(optionalAuthHandler(gziphandler.GzipHandler(ensureHandler(method, handler)))))
 }
 

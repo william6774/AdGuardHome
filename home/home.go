@@ -228,7 +228,12 @@ func run(args options) {
 		}
 	}
 
-	err := initWeb()
+	err := os.MkdirAll(Context.getDataDir(), 0755)
+	if err != nil {
+		log.Fatalf("Cannot create DNS data dir at %s: %s", Context.getDataDir(), err)
+	}
+
+	err = initWeb()
 	if err != nil {
 		log.Fatalf("%s", err)
 	}

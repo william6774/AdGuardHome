@@ -3,7 +3,6 @@ package home
 import (
 	"fmt"
 	"net"
-	"os"
 	"path/filepath"
 
 	"github.com/AdguardTeam/AdGuardHome/dnsfilter"
@@ -25,12 +24,8 @@ func onConfigModified() {
 // Please note that we must do it even if we don't start it
 // so that we had access to the query log and the stats
 func initDNSServer() error {
+	var err error
 	baseDir := Context.getDataDir()
-
-	err := os.MkdirAll(baseDir, 0755)
-	if err != nil {
-		return fmt.Errorf("Cannot create DNS data dir at %s: %s", baseDir, err)
-	}
 
 	statsConf := stats.Config{
 		Filename:       filepath.Join(baseDir, "stats.db"),

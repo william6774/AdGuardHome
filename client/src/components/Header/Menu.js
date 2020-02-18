@@ -10,7 +10,7 @@ import Dropdown from '../ui/Dropdown';
 
 const MENU_ITEMS = [
     {
-        route: MENU_URLS.root, exact: true, xlinkHref: 'dashboard', text: 'dashboard', order: 0,
+        route: MENU_URLS.root, exact: true, icon: 'dashboard', text: 'dashboard', order: 0,
     },
 
     // Settings dropdown should have visual order 1
@@ -18,10 +18,10 @@ const MENU_ITEMS = [
     // Filters dropdown should have visual order 2
 
     {
-        route: MENU_URLS.logs, xlinkHref: 'log', text: 'query_log', order: 3,
+        route: MENU_URLS.logs, icon: 'log', text: 'query_log', order: 3,
     },
     {
-        route: MENU_URLS.guide, xlinkHref: 'setup', text: 'setup_guide', order: 4,
+        route: MENU_URLS.guide, icon: 'setup', text: 'setup_guide', order: 4,
     },
 ];
 
@@ -56,16 +56,20 @@ class Menu extends Component {
     };
 
     getNavLink = ({
-        route, exact, text, order, className, xlinkHref,
+        route, exact, text, order, className, icon,
     }) => (
-        <NavLink to={route}
-                 key={route}
-                 exact={exact || false}
-                 className={`order-${order} ${className}`}
-                 onClick={this.toggleMenu}>
-            {xlinkHref && <svg className="nav-icon">
-                <use xlinkHref={`#${xlinkHref}`} />
-            </svg>}
+        <NavLink
+            to={route}
+            key={route}
+            exact={exact || false}
+            className={`order-${order} ${className}`}
+            onClick={this.toggleMenu}
+        >
+            {icon && (
+                <svg className="nav-icon">
+                    <use xlinkHref={`#${icon}`} />
+                </svg>
+            )}
             <Trans>{text}</Trans>
         </NavLink>
     );

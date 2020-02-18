@@ -70,14 +70,6 @@ func initDNSServer() error {
 		return fmt.Errorf("dnsServer.Prepare: %s", err)
 	}
 
-	sessFilename := filepath.Join(baseDir, "sessions.db")
-	Context.auth = InitAuth(sessFilename, config.Users, config.WebSessionTTLHours*60*60)
-	if Context.auth == nil {
-		closeDNSServer()
-		return fmt.Errorf("Couldn't initialize Auth module")
-	}
-	config.Users = nil
-
 	Context.rdns = InitRDNS(Context.dnsServer, &Context.clients)
 	Context.whois = initWhois(&Context.clients)
 
@@ -223,6 +215,8 @@ func startDNSServer() error {
 
 	enableFilters(false)
 
+	Context.clients.Start()
+
 	err := Context.dnsServer.Start()
 	if err != nil {
 		return errorx.Decorate(err, "Couldn't start forwarding DNS server")
@@ -292,11 +286,6 @@ func closeDNSServer() {
 	if Context.queryLog != nil {
 		Context.queryLog.Close()
 		Context.queryLog = nil
-	}
-
-	if Context.auth != nil {
-		Context.auth.Close()
-		Context.auth = nil
 	}
 
 	log.Debug("Closed all DNS modules")

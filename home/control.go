@@ -168,7 +168,7 @@ func registerControlHandlers() {
 	httpRegister(http.MethodGet, "/control/status", handleStatus)
 	httpRegister(http.MethodPost, "/control/i18n/change_language", handleI18nChangeLanguage)
 	httpRegister(http.MethodGet, "/control/i18n/current_language", handleI18nCurrentLanguage)
-	http.HandleFunc("/control/version.json", postInstall(optionalAuth(handleGetVersionJSON)))
+	http.HandleFunc("/control/version.json", optionalAuth(handleGetVersionJSON))
 	httpRegister(http.MethodPost, "/control/update", handleUpdate)
 
 	httpRegister("GET", "/control/profile", handleGetProfile)
@@ -178,11 +178,14 @@ func registerControlHandlers() {
 	RegisterBlockedServicesHandlers()
 	RegisterAuthHandlers()
 
-	http.HandleFunc("/dns-query", postInstall(handleDOH))
+	http.HandleFunc("/dns-query", handleDOH)
 }
 
 func httpRegister(method string, url string, handler func(http.ResponseWriter, *http.Request)) {
-	http.Handle(url, postInstallHandler(optionalAuthHandler(gziphandler.GzipHandler(ensureHandler(method, handler)))))
+	if Context.firstRun {
+		panic("Context.firstRun")
+	}
+	http.Handle(url, optionalAuthHandler(gziphandler.GzipHandler(ensureHandler(method, handler))))
 }
 
 // ----------------------------------

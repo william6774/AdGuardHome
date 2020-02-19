@@ -42,7 +42,7 @@ func CreateWeb(conf *WebConfig) *Web {
 	if conf.firstRun {
 		log.Info("This is the first launch of AdGuard Home, redirecting everything to /install.html ")
 		http.Handle("/install.html", preInstallHandler(http.FileServer(box)))
-		registerInstallHandlers()
+		w.registerInstallHandlers()
 	} else {
 		registerControlHandlers()
 	}

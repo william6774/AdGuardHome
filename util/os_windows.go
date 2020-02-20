@@ -2,7 +2,7 @@ package util
 
 import (
 	"fmt"
-	"os"
+	"syscall"
 
 	"golang.org/x/sys/windows"
 )
@@ -32,6 +32,6 @@ func HaveAdminRights() (bool, error) {
 	return true, nil
 }
 
-func SendProcessSignal(pid int, sig os.Signal) error {
+func SendProcessSignal(pid int, sig syscall.Signal) error {
 	return fmt.Errorf("not supported on Windows")
 }

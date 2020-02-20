@@ -443,15 +443,17 @@ func TestWhitelist(t *testing.T) {
 	d.SetFilters(filters, whiteFilters, false)
 	defer d.Close()
 
-	// matched by block filter but also matched by white filter
+	// matched by white filter
 	ret, err := d.CheckHost("host1", dns.TypeA, &setts)
 	assert.True(t, err == nil)
-	assert.True(t, !ret.IsFiltered)
+	assert.True(t, !ret.IsFiltered && ret.Reason == NotFilteredWhiteList)
+	assert.True(t, ret.Rule == "||host1^")
 
-	// matched by block filter and not matched by white filter
+	// not matched by white filter, but matched by block filter
 	ret, err = d.CheckHost("host2", dns.TypeA, &setts)
 	assert.True(t, err == nil)
 	assert.True(t, ret.IsFiltered && ret.Reason == FilteredBlackList)
+	assert.True(t, ret.Rule == "||host2^")
 
 }
 

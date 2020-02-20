@@ -276,7 +276,7 @@ func (d *Dnsfilter) CheckHostRules(host string, qtype uint16, setts *RequestFilt
 		return Result{}, nil
 	}
 
-	return d.matchHost(host, qtype, setts.ClientTags, false)
+	return d.matchHost(host, qtype, setts.ClientTags)
 }
 
 // CheckHost tries to match the host against filtering rules,
@@ -298,18 +298,9 @@ func (d *Dnsfilter) CheckHost(host string, qtype uint16, setts *RequestFiltering
 
 	// try filter lists first
 	if setts.FilteringEnabled {
-		result, err = d.matchHost(host, qtype, setts.ClientTags, false)
+		result, err = d.matchHost(host, qtype, setts.ClientTags)
 		if err != nil {
 			return result, err
-		}
-		if result.Reason == FilteredBlackList {
-			resultWhite, err := d.matchHost(host, qtype, setts.ClientTags, true)
-			if err != nil {
-				return Result{}, err
-			}
-			if resultWhite.Reason.Matched() {
-				result = Result{}
-			}
 		}
 		if result.Reason.Matched() {
 			return result, nil
@@ -507,20 +498,39 @@ func (d *Dnsfilter) initFiltering(filters []Filter, whiteFilters []Filter) error
 }
 
 // matchHost is a low-level way to check only if hostname is filtered by rules, skipping expensive safebrowsing and parental lookups
-func (d *Dnsfilter) matchHost(host string, qtype uint16, ctags []string, white bool) (Result, error) {
+func (d *Dnsfilter) matchHost(host string, qtype uint16, ctags []string) (Result, error) {
 	d.engineLock.RLock()
 	// Keep in mind that this lock must be held no just when calling Match()
 	//  but also while using the rules returned by it.
 	defer d.engineLock.RUnlock()
-	engine := d.filteringEngine
-	if white {
-		engine = d.filteringEngineWhite
+
+	if d.filteringEngineWhite != nil {
+		rr, ok := d.filteringEngineWhite.Match(host, ctags)
+		if ok {
+			var rule rules.Rule
+			if rr.NetworkRule != nil {
+				rule = rr.NetworkRule
+			} else if rr.HostRulesV4 != nil {
+				rule = rr.HostRulesV4[0]
+			} else if rr.HostRulesV6 != nil {
+				rule = rr.HostRulesV6[0]
+			}
+
+			log.Debug("Filtering: found whitelist rule for host '%s': '%s'  list_id: %d",
+				host, rule.Text(), rule.GetFilterListID())
+			res := Result{}
+			res.FilterID = int64(rule.GetFilterListID())
+			res.Rule = rule.Text()
+			res.Reason = NotFilteredWhiteList
+			return res, nil
+		}
 	}
-	if engine == nil {
+
+	if d.filteringEngine == nil {
 		return Result{}, nil
 	}
 
-	rr, ok := engine.Match(host, ctags)
+	rr, ok := d.filteringEngine.Match(host, ctags)
 	if !ok {
 		return Result{}, nil
 	}
@@ -543,6 +553,8 @@ func (d *Dnsfilter) matchHost(host string, qtype uint16, ctags []string, white b
 
 	if qtype == dns.TypeA && rr.HostRulesV4 != nil {
 		rule := rr.HostRulesV4[0] // note that we process only 1 matched rule
+		log.Debug("Filtering: found rule for host '%s': '%s'  list_id: %d",
+			host, rule.Text(), rule.GetFilterListID())
 		res := Result{}
 		res.FilterID = int64(rule.GetFilterListID())
 		res.Rule = rule.Text()
@@ -554,6 +566,8 @@ func (d *Dnsfilter) matchHost(host string, qtype uint16, ctags []string, white b
 
 	if qtype == dns.TypeAAAA && rr.HostRulesV6 != nil {
 		rule := rr.HostRulesV6[0] // note that we process only 1 matched rule
+		log.Debug("Filtering: found rule for host '%s': '%s'  list_id: %d",
+			host, rule.Text(), rule.GetFilterListID())
 		res := Result{}
 		res.FilterID = int64(rule.GetFilterListID())
 		res.Rule = rule.Text()
@@ -575,6 +589,8 @@ func (d *Dnsfilter) matchHost(host string, qtype uint16, ctags []string, white b
 		} else if rr.HostRulesV6 != nil {
 			rule = rr.HostRulesV6[0]
 		}
+		log.Debug("Filtering: found rule for host '%s': '%s'  list_id: %d",
+			host, rule.Text(), rule.GetFilterListID())
 		res.FilterID = int64(rule.GetFilterListID())
 		res.Rule = rule.Text()
 		res.IP = net.IP{}

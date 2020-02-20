@@ -1,5 +1,6 @@
 import { createAction } from 'redux-actions';
 import { showLoading, hideLoading } from 'react-redux-loading-bar';
+import { t } from 'i18next';
 
 import { normalizeFilteringStatus, normalizeRulesTextarea } from '../helpers/helpers';
 import { addErrorToast, addSuccessToast } from './index';
@@ -116,17 +117,14 @@ export const refreshFilters = () => async (dispatch) => {
     dispatch(refreshFiltersRequest());
     dispatch(showLoading());
     try {
-        const refreshText = await apiClient.refreshFilters();
+        const data = await apiClient.refreshFilters();
+        const { updated } = data;
         dispatch(refreshFiltersSuccess());
 
-        if (refreshText.includes('OK')) {
-            if (refreshText.includes('OK 0')) {
-                dispatch(addSuccessToast('all_lists_up_to_date_toast'));
-            } else {
-                dispatch(addSuccessToast(refreshText.replace(/OK /g, '')));
-            }
+        if (updated > 0) {
+            dispatch(addSuccessToast(t('list_updated', { count: updated })));
         } else {
-            dispatch(addErrorToast({ error: refreshText }));
+            dispatch(addSuccessToast('all_lists_up_to_date_toast'));
         }
 
         dispatch(getFilteringStatus());

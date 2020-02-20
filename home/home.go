@@ -279,8 +279,8 @@ func run(args options) {
 	select {}
 }
 
-// HomeStartMods - initialize and start DNS after installation
-func HomeStartMods() error {
+// StartMods - initialize and start DNS after installation
+func StartMods() error {
 	err := initDNSServer()
 	if err != nil {
 		return err

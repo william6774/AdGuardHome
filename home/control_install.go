@@ -325,7 +325,7 @@ func (web *Web) handleInstallConfigure(w http.ResponseWriter, r *http.Request) {
 	config.DNS.BindHost = newSettings.DNS.IP
 	config.DNS.Port = newSettings.DNS.Port
 
-	err = HomeStartMods()
+	err = StartMods()
 	if err != nil {
 		Context.firstRun = true
 		copyInstallSettings(&config, &curConfig)

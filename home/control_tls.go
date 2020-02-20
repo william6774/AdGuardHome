@@ -97,7 +97,7 @@ func (t *TLSMod) Reload() {
 	t.certLastMod = fi.ModTime().UTC()
 
 	tlsConf := config.TLS
-	reconfigureDNSServer()
+	_ = reconfigureDNSServer()
 	Context.web.TLSConfigChanged(tlsConf)
 }
 

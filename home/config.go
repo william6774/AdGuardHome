@@ -309,20 +309,3 @@ func (c *configuration) write() error {
 
 	return nil
 }
-
-func writeAllConfigs() error {
-	err := config.write()
-	if err != nil {
-		log.Error("Couldn't write config: %s", err)
-		return err
-	}
-
-	userFilter := userFilter()
-	err = userFilter.save()
-	if err != nil {
-		log.Error("Couldn't save the user filter: %s", err)
-		return err
-	}
-
-	return nil
-}

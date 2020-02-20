@@ -224,7 +224,7 @@ func handleFilteringRefresh(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, "%s", err)
 		return
 	}
-	fmt.Fprintf(w, "OK %d filters updated\n", nUpdated)
+	fmt.Fprintf(w, "OK %d lists updated\n", nUpdated)
 }
 
 type filterJSON struct {

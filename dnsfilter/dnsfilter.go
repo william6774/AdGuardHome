@@ -73,8 +73,8 @@ type Stats struct {
 
 // Parameters to pass to filters-initializer goroutine
 type filtersInitializerParams struct {
-	filters      []Filter
-	whiteFilters []Filter
+	allowFilters []Filter
+	blockFilters []Filter
 }
 
 // Dnsfilter holds added rules and performs hostname matches against the rules
@@ -181,11 +181,11 @@ func (d *Dnsfilter) WriteDiskConfig(c *Config) {
 // SetFilters - set new filters (synchronously or asynchronously)
 // When filters are set asynchronously, the old filters continue working until the new filters are ready.
 //  In this case the caller must ensure that the old filter files are intact.
-func (d *Dnsfilter) SetFilters(filters []Filter, whiteFilters []Filter, async bool) error {
+func (d *Dnsfilter) SetFilters(blockFilters []Filter, allowFilters []Filter, async bool) error {
 	if async {
 		params := filtersInitializerParams{
-			filters:      filters,
-			whiteFilters: whiteFilters,
+			allowFilters: allowFilters,
+			blockFilters: blockFilters,
 		}
 
 		d.filtersInitializerLock.Lock() // prevent multiple writers from adding more than 1 task
@@ -205,7 +205,7 @@ func (d *Dnsfilter) SetFilters(filters []Filter, whiteFilters []Filter, async bo
 		return nil
 	}
 
-	err := d.initFiltering(filters, whiteFilters)
+	err := d.initFiltering(allowFilters, blockFilters)
 	if err != nil {
 		log.Error("Can't initialize filtering subsystem: %s", err)
 		return err
@@ -218,7 +218,7 @@ func (d *Dnsfilter) SetFilters(filters []Filter, whiteFilters []Filter, async bo
 func (d *Dnsfilter) filtersInitializer() {
 	for {
 		params := <-d.filtersInitializerChan
-		err := d.initFiltering(params.filters, params.whiteFilters)
+		err := d.initFiltering(params.allowFilters, params.blockFilters)
 		if err != nil {
 			log.Error("Can't initialize filtering subsystem: %s", err)
 			continue
@@ -476,14 +476,14 @@ func createFilteringEngine(filters []Filter) (*filterlist.RuleStorage, *urlfilte
 }
 
 // Initialize urlfilter objects
-func (d *Dnsfilter) initFiltering(filters []Filter, whiteFilters []Filter) error {
+func (d *Dnsfilter) initFiltering(allowFilters, blockFilters []Filter) error {
 	d.engineLock.Lock()
 	d.reset()
-	rulesStorage, filteringEngine, err := createFilteringEngine(filters)
+	rulesStorage, filteringEngine, err := createFilteringEngine(blockFilters)
 	if err != nil {
 		return err
 	}
-	rulesStorageWhite, filteringEngineWhite, err := createFilteringEngine(whiteFilters)
+	rulesStorageWhite, filteringEngineWhite, err := createFilteringEngine(allowFilters)
 	if err != nil {
 		return err
 	}
@@ -601,7 +601,7 @@ func (d *Dnsfilter) matchHost(host string, qtype uint16, ctags []string) (Result
 }
 
 // New creates properly initialized DNS Filter that is ready to be used
-func New(c *Config, filters []Filter) *Dnsfilter {
+func New(c *Config, blockFilters []Filter) *Dnsfilter {
 
 	if c != nil {
 		cacheConf := cache.Config{
@@ -639,8 +639,8 @@ func New(c *Config, filters []Filter) *Dnsfilter {
 		d.prepareRewrites()
 	}
 
-	if filters != nil {
-		err := d.initFiltering(filters, nil)
+	if blockFilters != nil {
+		err := d.initFiltering(nil, blockFilters)
 		if err != nil {
 			log.Error("Can't initialize filtering subsystem: %s", err)
 			d.Close()

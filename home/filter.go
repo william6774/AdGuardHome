@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/AdguardTeam/AdGuardHome/dnsfilter"
@@ -234,8 +235,7 @@ func periodicallyRefreshFilters() {
 	intval := 5 // use a dynamically increasing time interval
 	for {
 		isNetworkErr := false
-		if config.DNS.FiltersUpdateIntervalHours != 0 && refreshStatus == 0 {
-			refreshStatus = 1
+		if config.DNS.FiltersUpdateIntervalHours != 0 && atomic.CompareAndSwapUint32(&refreshStatus, 0, 1) {
 			refreshLock.Lock()
 			_, isNetworkErr = refreshFiltersIfNecessary(false)
 			refreshLock.Unlock()
@@ -258,11 +258,10 @@ func periodicallyRefreshFilters() {
 
 // Refresh filters
 func refreshFilters() (int, error) {
-	if refreshStatus != 0 { // we could use atomic cmpxchg here, but it's not really required
+	if !atomic.CompareAndSwapUint32(&refreshStatus, 0, 1) {
 		return 0, fmt.Errorf("Filters update procedure is already running")
 	}
 
-	refreshStatus = 1
 	refreshLock.Lock()
 	nUpdated, _ := refreshFiltersIfNecessary(true)
 	refreshLock.Unlock()

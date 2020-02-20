@@ -235,16 +235,20 @@ func run(args options) {
 	}
 	config.Users = nil
 
+	if !tlsInit() {
+		log.Fatalf("Can't initialize TLS module")
+	}
+
 	webConf := WebConfig{
 		firstRun: Context.firstRun,
 		BindHost: config.BindHost,
 		BindPort: config.BindPort,
-		TLS:      config.TLS,
 	}
 	Context.web = CreateWeb(&webConf)
 	if Context.web == nil {
 		log.Fatalf("Can't initialize Web module")
 	}
+	Context.web.TLSConfigChanged(config.TLS)
 
 	if !Context.firstRun {
 		err := initDNSServer()

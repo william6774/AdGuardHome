@@ -15,15 +15,26 @@ import (
 )
 
 type WebConfig struct {
-	firstRun bool
-	BindHost string
-	BindPort int
-	TLS      tlsConfig
+	firstRun  bool
+	BindHost  string
+	BindPort  int
+	PortHTTPS int
+}
+
+// HTTPSServer - HTTPS Server
+type HTTPSServer struct {
+	server   *http.Server
+	cond     *sync.Cond
+	condLock sync.Mutex
+	shutdown bool // if TRUE, don't restart the server
+	enabled  bool
+	cert     tls.Certificate
 }
 
 // Web - module object
 type Web struct {
 	conf        *WebConfig
+	forceHTTPS  bool
 	httpServer  *http.Server // HTTP module
 	httpsServer HTTPSServer  // HTTPS module
 }
@@ -48,7 +59,7 @@ func CreateWeb(conf *WebConfig) *Web {
 		registerControlHandlers()
 	}
 
-	w.httpsServer.cond = sync.NewCond(&w.httpsServer.Mutex)
+	w.httpsServer.cond = sync.NewCond(&w.httpsServer.condLock)
 	return &w
 }
 
@@ -69,13 +80,31 @@ func WebCheckPortAvailable(port int) bool {
 }
 
 // TLSConfigChanged - called when TLS configuration has changed
-func TLSConfigChanged() {
-	Context.web.httpsServer.cond.L.Lock()
-	Context.web.httpsServer.cond.Broadcast()
-	if Context.web.httpsServer.server != nil {
-		Context.web.httpsServer.server.Shutdown(context.TODO())
+func (w *Web) TLSConfigChanged(tlsConf tlsConfig) {
+	w.conf.PortHTTPS = tlsConf.PortHTTPS
+	w.forceHTTPS = (tlsConf.ForceHTTPS && tlsConf.Enabled && tlsConf.PortHTTPS != 0)
+
+	disabled := tlsConf.Enabled == false ||
+		tlsConf.PortHTTPS == 0 ||
+		len(tlsConf.PrivateKeyData) == 0 ||
+		len(tlsConf.CertificateChainData) == 0
+	var cert tls.Certificate
+	var err error
+	if !disabled {
+		cert, err = tls.X509KeyPair(tlsConf.CertificateChainData, tlsConf.PrivateKeyData)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
-	Context.web.httpsServer.cond.L.Unlock()
+
+	w.httpsServer.cond.L.Lock()
+	if w.httpsServer.server != nil {
+		w.httpsServer.server.Shutdown(context.TODO())
+	}
+	w.httpsServer.enabled = !disabled
+	w.httpsServer.cert = cert
+	w.httpsServer.cond.Broadcast()
+	w.httpsServer.cond.L.Unlock()
 }
 
 // Start - start serving HTTP requests
@@ -117,14 +146,6 @@ func (w *Web) Close() {
 	log.Info("Stopped HTTP server")
 }
 
-// HTTPSServer - HTTPS Server
-type HTTPSServer struct {
-	server     *http.Server
-	cond       *sync.Cond // reacts to config.TLS.Enabled, PortHTTPS, CertificateChain and PrivateKey
-	sync.Mutex            // protects config.TLS
-	shutdown   bool       // if TRUE, don't restart the server
-}
-
 func (w *Web) httpServerLoop() {
 	for {
 		w.httpsServer.cond.L.Lock()
@@ -132,48 +153,30 @@ func (w *Web) httpServerLoop() {
 			w.httpsServer.cond.L.Unlock()
 			break
 		}
-		// this mechanism doesn't let us through until all conditions are met
-		for config.TLS.Enabled == false ||
-			config.TLS.PortHTTPS == 0 ||
-			len(config.TLS.PrivateKeyData) == 0 ||
-			len(config.TLS.CertificateChainData) == 0 { // sleep until necessary data is supplied
-			w.httpsServer.cond.Wait()
-		}
-		address := net.JoinHostPort(config.BindHost, strconv.Itoa(config.TLS.PortHTTPS))
-		// validate current TLS config and update warnings (it could have been loaded from file)
-		data := validateCertificates(string(config.TLS.CertificateChainData), string(config.TLS.PrivateKeyData), config.TLS.ServerName)
-		if !data.ValidPair {
-			cleanupAlways()
-			log.Fatal(data.WarningValidation)
-		}
-		config.Lock()
-		config.TLS.tlsConfigStatus = data // update warnings
-		config.Unlock()
 
-		// prepare certs for HTTPS server
-		// important -- they have to be copies, otherwise changing the contents in config.TLS will break encryption for in-flight requests
-		certchain := make([]byte, len(config.TLS.CertificateChainData))
-		copy(certchain, config.TLS.CertificateChainData)
-		privatekey := make([]byte, len(config.TLS.PrivateKeyData))
-		copy(privatekey, config.TLS.PrivateKeyData)
-		cert, err := tls.X509KeyPair(certchain, privatekey)
-		if err != nil {
-			cleanupAlways()
-			log.Fatal(err)
+		// this mechanism doesn't let us through until all conditions are met
+		for !w.httpsServer.enabled { // sleep until necessary data is supplied
+			w.httpsServer.cond.Wait()
+			if w.httpsServer.shutdown {
+				w.httpsServer.cond.L.Unlock()
+				return
+			}
 		}
+
 		w.httpsServer.cond.L.Unlock()
 
 		// prepare HTTPS server
+		address := net.JoinHostPort(w.conf.BindHost, strconv.Itoa(w.conf.PortHTTPS))
 		w.httpsServer.server = &http.Server{
 			Addr: address,
 			TLSConfig: &tls.Config{
-				Certificates: []tls.Certificate{cert},
+				Certificates: []tls.Certificate{w.httpsServer.cert},
 				MinVersion:   tls.VersionTLS12,
 			},
 		}
 
 		printHTTPAddresses("https")
-		err = w.httpsServer.server.ListenAndServeTLS("", "")
+		err := w.httpsServer.server.ListenAndServeTLS("", "")
 		if err != http.ErrServerClosed {
 			cleanupAlways()
 			log.Fatal(err)

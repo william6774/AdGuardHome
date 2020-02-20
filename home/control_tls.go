@@ -23,6 +23,25 @@ import (
 	"github.com/joomcode/errorx"
 )
 
+// Initialize TLS module
+func tlsInit() bool {
+	if config.TLS.Enabled == false ||
+		config.TLS.PortHTTPS == 0 ||
+		len(config.TLS.PrivateKeyData) == 0 ||
+		len(config.TLS.CertificateChainData) == 0 {
+		return true
+	}
+
+	// validate current TLS config and update warnings (it could have been loaded from file)
+	data := validateCertificates(string(config.TLS.CertificateChainData), string(config.TLS.PrivateKeyData), config.TLS.ServerName)
+	if !data.ValidPair {
+		log.Error(data.WarningValidation)
+		return false
+	}
+	config.TLS.tlsConfigStatus = data // update warnings
+	return true
+}
+
 // Set certificate and private key data
 func tlsLoadConfig(tls *tlsConfig, status *tlsConfigStatus) bool {
 	tls.CertificateChainData = []byte(tls.CertificateChain)
@@ -114,7 +133,9 @@ func handleTLSConfigure(w http.ResponseWriter, r *http.Request) {
 		log.Printf("tls config settings have changed, will restart HTTPS server")
 		restartHTTPS = true
 	}
+	config.Lock()
 	config.TLS = data
+	config.Unlock()
 	err = writeAllConfigsAndReloadDNS()
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, "Couldn't write config file: %s", err)
@@ -126,7 +147,7 @@ func handleTLSConfigure(w http.ResponseWriter, r *http.Request) {
 	if restartHTTPS {
 		go func() {
 			time.Sleep(time.Second) // TODO: could not find a way to reliably know that data was fully sent to client by https server, so we wait a bit to let response through before closing the server
-			TLSConfigChanged()
+			Context.web.TLSConfigChanged(data)
 		}()
 	}
 }

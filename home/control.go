@@ -264,7 +264,7 @@ func postInstall(handler func(http.ResponseWriter, *http.Request)) func(http.Res
 		}
 
 		// enforce https?
-		if config.TLS.ForceHTTPS && r.TLS == nil && config.TLS.Enabled && config.TLS.PortHTTPS != 0 && Context.web.httpsServer.server != nil {
+		if r.TLS == nil && Context.web.forceHTTPS && Context.web.httpsServer.server != nil {
 			// yes, and we want host from host:port
 			host, _, err := net.SplitHostPort(r.Host)
 			if err != nil {

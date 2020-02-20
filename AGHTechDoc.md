@@ -55,6 +55,7 @@ Contents:
 	* Filters update mechanism
 	* API: Get filtering parameters
 	* API: Set filtering parameters
+	* API: Refresh filters
 	* API: Add Filter
 	* API: Set URL parameters
 	* API: Delete URL
@@ -1396,6 +1397,21 @@ Request:
 Response:
 
 	200 OK
+
+
+### API: Refresh filters
+
+Request:
+
+	POST /control/filtering/refresh
+
+Response:
+
+	200 OK
+
+	{
+		"updated": 123 // number of filters updated
+	}
 
 
 ### API: Add Filter

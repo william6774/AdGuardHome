@@ -217,14 +217,27 @@ func handleFilteringSetRules(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleFilteringRefresh(w http.ResponseWriter, r *http.Request) {
+	type Resp struct {
+		Updated int `json:"updated"`
+	}
+	resp := Resp{}
+	var err error
+
 	Context.controlLock.Unlock()
-	nUpdated, err := refreshFilters()
+	resp.Updated, err = refreshFilters()
 	Context.controlLock.Lock()
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, "%s", err)
 		return
 	}
-	fmt.Fprintf(w, "OK %d lists updated\n", nUpdated)
+
+	js, err := json.Marshal(resp)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, "json encode: %s", err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(js)
 }
 
 type filterJSON struct {

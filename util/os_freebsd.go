@@ -28,5 +28,5 @@ func HaveAdminRights() (bool, error) {
 
 // SendProcessSignal - send signal to a process
 func SendProcessSignal(pid int, sig os.Signal) error {
-	return syscall.Kill(sig)
+	return syscall.Kill(pid, sig)
 }

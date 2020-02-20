@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/AdguardTeam/AdGuardHome/util"
 	"github.com/AdguardTeam/golibs/log"
 	"github.com/NYTimes/gziphandler"
 	"github.com/gobuffalo/packr"
@@ -49,6 +50,32 @@ func CreateWeb(conf *WebConfig) *Web {
 
 	w.httpsServer.cond = sync.NewCond(&w.httpsServer.Mutex)
 	return &w
+}
+
+// WebCheckPortAvailable - check if port is available
+// BUT: if we are already using this port, no need
+func WebCheckPortAvailable(port int) bool {
+	alreadyRunning := false
+	if Context.web.httpsServer.server != nil {
+		alreadyRunning = true
+	}
+	if !alreadyRunning {
+		err := util.CheckPortAvailable(config.BindHost, port)
+		if err != nil {
+			return false
+		}
+	}
+	return true
+}
+
+// TLSConfigChanged - called when TLS configuration has changed
+func TLSConfigChanged() {
+	Context.web.httpsServer.cond.L.Lock()
+	Context.web.httpsServer.cond.Broadcast()
+	if Context.web.httpsServer.server != nil {
+		Context.web.httpsServer.server.Shutdown(context.TODO())
+	}
+	Context.web.httpsServer.cond.L.Unlock()
 }
 
 // Start - start serving HTTP requests

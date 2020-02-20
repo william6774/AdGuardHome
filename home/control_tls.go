@@ -3,7 +3,6 @@
 package home
 
 import (
-	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/rsa"
@@ -19,8 +18,6 @@ import (
 	"reflect"
 	"strings"
 	"time"
-
-	"github.com/AdguardTeam/AdGuardHome/util"
 
 	"github.com/AdguardTeam/golibs/log"
 	"github.com/joomcode/errorx"
@@ -79,18 +76,9 @@ func handleTLSValidate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// check if port is available
-	// BUT: if we are already using this port, no need
-	alreadyRunning := false
-	if Context.web.httpsServer.server != nil {
-		alreadyRunning = true
-	}
-	if !alreadyRunning {
-		err = util.CheckPortAvailable(config.BindHost, data.PortHTTPS)
-		if err != nil {
-			httpError(w, http.StatusBadRequest, "port %d is not available, cannot enable HTTPS on it", data.PortHTTPS)
-			return
-		}
+	if !WebCheckPortAvailable(data.PortHTTPS) {
+		httpError(w, http.StatusBadRequest, "port %d is not available, cannot enable HTTPS on it", data.PortHTTPS)
+		return
 	}
 
 	status := tlsConfigStatus{}
@@ -109,18 +97,9 @@ func handleTLSConfigure(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// check if port is available
-	// BUT: if we are already using this port, no need
-	alreadyRunning := false
-	if Context.web.httpsServer.server != nil {
-		alreadyRunning = true
-	}
-	if !alreadyRunning {
-		err = util.CheckPortAvailable(config.BindHost, data.PortHTTPS)
-		if err != nil {
-			httpError(w, http.StatusBadRequest, "port %d is not available, cannot enable HTTPS on it", data.PortHTTPS)
-			return
-		}
+	if !WebCheckPortAvailable(data.PortHTTPS) {
+		httpError(w, http.StatusBadRequest, "port %d is not available, cannot enable HTTPS on it", data.PortHTTPS)
+		return
 	}
 
 	status := tlsConfigStatus{}
@@ -147,12 +126,7 @@ func handleTLSConfigure(w http.ResponseWriter, r *http.Request) {
 	if restartHTTPS {
 		go func() {
 			time.Sleep(time.Second) // TODO: could not find a way to reliably know that data was fully sent to client by https server, so we wait a bit to let response through before closing the server
-			Context.web.httpsServer.cond.L.Lock()
-			Context.web.httpsServer.cond.Broadcast()
-			if Context.web.httpsServer.server != nil {
-				Context.web.httpsServer.server.Shutdown(context.TODO())
-			}
-			Context.web.httpsServer.cond.L.Unlock()
+			TLSConfigChanged()
 		}()
 	}
 }

@@ -63,6 +63,7 @@ type homeContext struct {
 	dhcpServer *dhcpd.Server        // DHCP module
 	auth       *Auth                // HTTP authentication module
 	web        *Web
+	tls        *TLSMod
 
 	// Runtime properties
 	// --
@@ -114,6 +115,7 @@ func Main(version string, channel string, armVer string) {
 			switch sig {
 			case syscall.SIGHUP:
 				Context.clients.Reload()
+				Context.tls.Reload()
 
 			default:
 				cleanup()
@@ -235,7 +237,8 @@ func run(args options) {
 	}
 	config.Users = nil
 
-	if !tlsInit() {
+	Context.tls = tlsCreate()
+	if Context.tls == nil {
 		log.Fatalf("Can't initialize TLS module")
 	}
 
@@ -255,6 +258,8 @@ func run(args options) {
 		if err != nil {
 			log.Fatalf("%s", err)
 		}
+		Context.tls.Start()
+
 		go func() {
 			err := startDNSServer()
 			if err != nil {
@@ -272,6 +277,23 @@ func run(args options) {
 
 	// wait indefinitely for other go-routines to complete their job
 	select {}
+}
+
+// HomeStartMods - initialize and start DNS after installation
+func HomeStartMods() error {
+	err := initDNSServer()
+	if err != nil {
+		return err
+	}
+
+	Context.tls.Start()
+
+	err = startDNSServer()
+	if err != nil {
+		closeDNSServer()
+		return err
+	}
+	return nil
 }
 
 // Check if the current user has root (administrator) rights
@@ -399,6 +421,11 @@ func cleanup() {
 	err = stopDHCPServer()
 	if err != nil {
 		log.Error("Couldn't stop DHCP server: %s", err)
+	}
+
+	if Context.tls != nil {
+		Context.tls.Close()
+		Context.tls = nil
 	}
 }
 

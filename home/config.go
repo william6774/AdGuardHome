@@ -255,6 +255,11 @@ func (c *configuration) write() error {
 	if Context.auth != nil {
 		config.Users = Context.auth.GetUsers()
 	}
+	if Context.tls != nil {
+		tlsConf := tlsConfig{}
+		Context.tls.WriteDiskConfig(&tlsConf)
+		config.TLS = tlsConf
+	}
 
 	if Context.stats != nil {
 		sdc := stats.DiskConfig{}

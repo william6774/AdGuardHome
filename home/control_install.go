@@ -325,21 +325,12 @@ func (web *Web) handleInstallConfigure(w http.ResponseWriter, r *http.Request) {
 	config.DNS.BindHost = newSettings.DNS.IP
 	config.DNS.Port = newSettings.DNS.Port
 
-	err = initDNSServer()
-	var err2 error
-	if err == nil {
-		err2 = startDNSServer()
-		if err2 != nil {
-			closeDNSServer()
-		}
-	}
-	if err != nil || err2 != nil {
+	err = HomeStartMods()
+	if err != nil {
 		Context.firstRun = true
 		copyInstallSettings(&config, &curConfig)
 		if err != nil {
-			httpError(w, http.StatusInternalServerError, "Couldn't initialize DNS server: %s", err)
-		} else {
-			httpError(w, http.StatusInternalServerError, "Couldn't start DNS server: %s", err2)
+			httpError(w, http.StatusInternalServerError, "%s", err)
 		}
 		return
 	}

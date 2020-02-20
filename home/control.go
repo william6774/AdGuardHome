@@ -36,15 +36,6 @@ func httpError(w http.ResponseWriter, code int, format string, args ...interface
 // ---------------
 // dns run control
 // ---------------
-func writeAllConfigsAndReloadDNS() error {
-	err := writeAllConfigs()
-	if err != nil {
-		log.Error("Couldn't write all configs: %s", err)
-		return err
-	}
-	return reconfigureDNSServer()
-}
-
 func addDNSAddress(dnsAddresses *[]string, addr string) {
 	if config.DNS.Port != 53 {
 		addr = fmt.Sprintf("%s:%d", addr, config.DNS.Port)
@@ -171,7 +162,6 @@ func registerControlHandlers() {
 	httpRegister("GET", "/control/profile", handleGetProfile)
 
 	RegisterFilteringHandlers()
-	RegisterTLSHandlers()
 	RegisterAuthHandlers()
 
 	http.HandleFunc("/dns-query", postInstall(handleDOH))

@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"reflect"
 	"strings"
 	"time"
@@ -23,23 +24,81 @@ import (
 	"github.com/joomcode/errorx"
 )
 
-// Initialize TLS module
-func tlsInit() bool {
+var tlsWebHandlersRegistered = false
+
+// TLSMod - TLS module object
+type TLSMod struct {
+	certLastMod time.Time // last modification time of the certificate file
+}
+
+// Create TLS module
+func tlsCreate() *TLSMod {
+	t := &TLSMod{}
 	if config.TLS.Enabled == false ||
 		config.TLS.PortHTTPS == 0 ||
 		len(config.TLS.PrivateKeyData) == 0 ||
 		len(config.TLS.CertificateChainData) == 0 {
-		return true
+		return t
 	}
 
 	// validate current TLS config and update warnings (it could have been loaded from file)
 	data := validateCertificates(string(config.TLS.CertificateChainData), string(config.TLS.PrivateKeyData), config.TLS.ServerName)
 	if !data.ValidPair {
 		log.Error(data.WarningValidation)
-		return false
+		return nil
 	}
 	config.TLS.tlsConfigStatus = data // update warnings
-	return true
+
+	t.setCertFileTime()
+	return t
+}
+
+// Close - close module
+func (t *TLSMod) Close() {
+}
+
+// WriteDiskConfig - write config
+func (t *TLSMod) WriteDiskConfig(conf *tlsConfig) {
+	*conf = config.TLS
+}
+
+func (t *TLSMod) setCertFileTime() {
+	fi, err := os.Stat(config.TLS.CertificatePath)
+	if err != nil {
+		log.Error("TLS: %s", err)
+		return
+	}
+	t.certLastMod = fi.ModTime().UTC()
+}
+
+// Start - start the module
+func (t *TLSMod) Start() {
+	if !tlsWebHandlersRegistered {
+		tlsWebHandlersRegistered = true
+		t.registerWebHandlers()
+	}
+}
+
+// Reload - reload the module's configuration
+func (t *TLSMod) Reload() {
+	if len(config.TLS.CertificatePath) == 0 {
+		return
+	}
+	fi, err := os.Stat(config.TLS.CertificatePath)
+	if err != nil {
+		log.Error("TLS: %s", err)
+		return
+	}
+	if fi.ModTime().UTC().Equal(t.certLastMod) {
+		log.Debug("TLS: certificate file isn't modified")
+		return
+	}
+	log.Debug("TLS: certificate file is modified")
+	t.certLastMod = fi.ModTime().UTC()
+
+	tlsConf := config.TLS
+	reconfigureDNSServer()
+	Context.web.TLSConfigChanged(tlsConf)
 }
 
 // Set certificate and private key data
@@ -77,18 +136,11 @@ func tlsLoadConfig(tls *tlsConfig, status *tlsConfigStatus) bool {
 	return true
 }
 
-// RegisterTLSHandlers registers HTTP handlers for TLS configuration
-func RegisterTLSHandlers() {
-	httpRegister(http.MethodGet, "/control/tls/status", handleTLSStatus)
-	httpRegister(http.MethodPost, "/control/tls/configure", handleTLSConfigure)
-	httpRegister(http.MethodPost, "/control/tls/validate", handleTLSValidate)
-}
-
-func handleTLSStatus(w http.ResponseWriter, r *http.Request) {
+func (t *TLSMod) handleTLSStatus(w http.ResponseWriter, r *http.Request) {
 	marshalTLS(w, config.TLS)
 }
 
-func handleTLSValidate(w http.ResponseWriter, r *http.Request) {
+func (t *TLSMod) handleTLSValidate(w http.ResponseWriter, r *http.Request) {
 	data, err := unmarshalTLS(r)
 	if err != nil {
 		httpError(w, http.StatusBadRequest, "Failed to unmarshal TLS config: %s", err)
@@ -109,7 +161,7 @@ func handleTLSValidate(w http.ResponseWriter, r *http.Request) {
 	marshalTLS(w, data)
 }
 
-func handleTLSConfigure(w http.ResponseWriter, r *http.Request) {
+func (t *TLSMod) handleTLSConfigure(w http.ResponseWriter, r *http.Request) {
 	data, err := unmarshalTLS(r)
 	if err != nil {
 		httpError(w, http.StatusBadRequest, "Failed to unmarshal TLS config: %s", err)
@@ -136,9 +188,11 @@ func handleTLSConfigure(w http.ResponseWriter, r *http.Request) {
 	config.Lock()
 	config.TLS = data
 	config.Unlock()
-	err = writeAllConfigsAndReloadDNS()
+	t.setCertFileTime()
+	onConfigModified()
+	err = reconfigureDNSServer()
 	if err != nil {
-		httpError(w, http.StatusInternalServerError, "Couldn't write config file: %s", err)
+		httpError(w, http.StatusInternalServerError, "%s", err)
 		return
 	}
 	marshalTLS(w, data)
@@ -382,4 +436,11 @@ func marshalTLS(w http.ResponseWriter, data tlsConfig) {
 		httpError(w, http.StatusInternalServerError, "Failed to marshal json with TLS status: %s", err)
 		return
 	}
+}
+
+// registerWebHandlers registers HTTP handlers for TLS configuration
+func (t *TLSMod) registerWebHandlers() {
+	httpRegister("GET", "/control/tls/status", t.handleTLSStatus)
+	httpRegister("POST", "/control/tls/configure", t.handleTLSConfigure)
+	httpRegister("POST", "/control/tls/validate", t.handleTLSValidate)
 }

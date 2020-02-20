@@ -77,7 +77,9 @@ func (w *Web) Start() {
 // Close - stop HTTP server, possibly waiting for all active connections to be closed
 func (w *Web) Close() {
 	log.Info("Stopping HTTP server...")
+	w.httpsServer.cond.L.Lock()
 	w.httpsServer.shutdown = true
+	w.httpsServer.cond.L.Unlock()
 	if w.httpsServer.server != nil {
 		_ = w.httpsServer.server.Shutdown(context.TODO())
 	}
@@ -97,8 +99,12 @@ type HTTPSServer struct {
 }
 
 func (w *Web) httpServerLoop() {
-	for !w.httpsServer.shutdown {
+	for {
 		w.httpsServer.cond.L.Lock()
+		if w.httpsServer.shutdown {
+			w.httpsServer.cond.L.Unlock()
+			break
+		}
 		// this mechanism doesn't let us through until all conditions are met
 		for config.TLS.Enabled == false ||
 			config.TLS.PortHTTPS == 0 ||

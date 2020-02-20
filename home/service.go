@@ -107,7 +107,7 @@ func sendSigReload() {
 		log.Error("Can't read PID file %s: %s", pidfile, err)
 		return
 	}
-	err = syscall.Kill(pid, syscall.SIGHUP)
+	err = util.SendProcessSignal(pid, syscall.SIGHUP)
 	if err != nil {
 		log.Error("Can't send signal to PID %d: %s", pid, err)
 		return

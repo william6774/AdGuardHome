@@ -29,7 +29,7 @@ class DnsWhitelist extends Component {
     };
 
     handleDelete = (url) => {
-        if (window.confirm(this.props.t('filter_confirm_delete'))) {
+        if (window.confirm(this.props.t('list_confirm_delete'))) {
             const whitelist = true;
             this.props.removeFilter(url, whitelist);
         }
@@ -65,6 +65,7 @@ class DnsWhitelist extends Component {
             || processingAddFilter
             || processingRemoveFilter
             || processingRefreshFilters;
+        const whitelist = true;
 
         return (
             <Fragment>
@@ -72,10 +73,7 @@ class DnsWhitelist extends Component {
                 <div className="content">
                     <div className="row">
                         <div className="col-md-12">
-                            <Card
-                                title={t('filters_and_hosts_whitelist')}
-                                subtitle={t('filters_and_hosts_hint')}
-                            >
+                            <Card subtitle={t('filters_and_hosts_hint')}>
                                 <Table
                                     filters={whitelistFilters}
                                     loading={loading}
@@ -84,11 +82,13 @@ class DnsWhitelist extends Component {
                                     toggleFilterStatus={toggleFilterStatus}
                                     handleDelete={this.handleDelete}
                                     toggleFilter={this.toggleFilter}
+                                    whitelist={whitelist}
                                 />
                                 <Actions
                                     handleAdd={() => toggleFilteringModal({ type: MODAL_TYPE.ADD })}
                                     handleRefresh={refreshFilters}
                                     processingRefreshFilters={processingRefreshFilters}
+                                    whitelist={whitelist}
                                 />
                             </Card>
                         </div>
@@ -104,6 +104,7 @@ class DnsWhitelist extends Component {
                     handleSubmit={this.handleSubmit}
                     modalType={modalType}
                     currentFilterData={currentFilterData}
+                    whitelist={whitelist}
                 />
             </Fragment>
         );

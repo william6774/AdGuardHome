@@ -121,7 +121,7 @@ export const refreshFilters = () => async (dispatch) => {
 
         if (refreshText.includes('OK')) {
             if (refreshText.includes('OK 0')) {
-                dispatch(addSuccessToast('all_filters_up_to_date_toast'));
+                dispatch(addSuccessToast('all_lists_up_to_date_toast'));
             } else {
                 dispatch(addSuccessToast(refreshText.replace(/OK /g, '')));
             }

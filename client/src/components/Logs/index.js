@@ -188,6 +188,7 @@ class Logs extends Component {
                         <span className="logs__text">
                             <Trans>blocked_by_response</Trans>
                         </span>
+                        {this.renderTooltip(isFiltered, rule, filterName)}
                     </div>
                     <div className="logs__list-wrap">
                         {this.renderResponseList(normalizedAnswer, status)}

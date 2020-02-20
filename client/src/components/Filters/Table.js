@@ -45,7 +45,7 @@ class Table extends Component {
             Cell: CellWrap,
         },
         {
-            Header: <Trans>filter_url_table_header</Trans>,
+            Header: <Trans>list_url_table_header</Trans>,
             accessor: 'url',
             minWidth: 200,
             Cell: ({ value }) => (
@@ -119,7 +119,9 @@ class Table extends Component {
     ];
 
     render() {
-        const { loading, filters, t } = this.props;
+        const {
+            loading, filters, t, whitelist,
+        } = this.props;
 
         return (
             <ReactTable
@@ -135,7 +137,7 @@ class Table extends Component {
                 pageText={t('page_table_footer_text')}
                 ofText="/"
                 rowsText={t('rows_table_footer_text')}
-                noDataText={t('no_filters_added')}
+                noDataText={whitelist ? t('no_whitelist_added') : t('no_blocklist_added')}
             />
         );
     }
@@ -149,6 +151,7 @@ Table.propTypes = {
     handleDelete: PropTypes.func.isRequired,
     toggleFilter: PropTypes.func.isRequired,
     t: PropTypes.func.isRequired,
+    whitelist: PropTypes.bool,
 };
 
 export default withNamespaces()(Table);

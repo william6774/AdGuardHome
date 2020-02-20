@@ -28,7 +28,7 @@ class DnsBlocklist extends Component {
     };
 
     handleDelete = (url) => {
-        if (window.confirm(this.props.t('filter_confirm_delete'))) {
+        if (window.confirm(this.props.t('list_confirm_delete'))) {
             this.props.removeFilter(url);
         }
     };
@@ -68,10 +68,7 @@ class DnsBlocklist extends Component {
                 <div className="content">
                     <div className="row">
                         <div className="col-md-12">
-                            <Card
-                                title={t('filters_and_hosts')}
-                                subtitle={t('filters_and_hosts_hint')}
-                            >
+                            <Card subtitle={t('filters_and_hosts_hint')}>
                                 <Table
                                     filters={filters}
                                     loading={loading}

@@ -2,14 +2,20 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { withNamespaces, Trans } from 'react-i18next';
 
-const Actions = ({ handleAdd, handleRefresh, processingRefreshFilters }) => (
+const Actions = ({
+    handleAdd, handleRefresh, processingRefreshFilters, whitelist,
+}) => (
     <div className="card-actions">
         <button
             className="btn btn-success btn-standard mr-2 btn-large"
             type="submit"
             onClick={handleAdd}
         >
-            <Trans>add_filter_btn</Trans>
+            {whitelist ? (
+                <Trans>add_allowlist</Trans>
+            ) : (
+                <Trans>add_blocklist</Trans>
+            )}
         </button>
         <button
             className="btn btn-primary btn-standard"
@@ -26,6 +32,7 @@ Actions.propTypes = {
     handleAdd: PropTypes.func.isRequired,
     handleRefresh: PropTypes.func.isRequired,
     processingRefreshFilters: PropTypes.bool.isRequired,
+    whitelist: PropTypes.bool,
 };
 
 export default withNamespaces()(Actions);

@@ -81,6 +81,7 @@ func WebCheckPortAvailable(port int) bool {
 
 // TLSConfigChanged - called when TLS configuration has changed
 func (w *Web) TLSConfigChanged(tlsConf tlsConfig) {
+	log.Debug("Web: applying new TLS configuration")
 	w.conf.PortHTTPS = tlsConf.PortHTTPS
 	w.forceHTTPS = (tlsConf.ForceHTTPS && tlsConf.Enabled && tlsConf.PortHTTPS != 0)
 

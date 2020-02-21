@@ -67,6 +67,8 @@ Contents:
 
 ![](doc/agh-arch.png)
 
+	tls -> web
+	config.TLS users: home, dns, web, tls
 
 
 ## First startup

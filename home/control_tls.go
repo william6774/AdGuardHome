@@ -34,23 +34,28 @@ type TLSMod struct {
 // Create TLS module
 func tlsCreate() *TLSMod {
 	t := &TLSMod{}
-	if config.TLS.Enabled == false ||
-		config.TLS.PortHTTPS == 0 ||
-		len(config.TLS.PrivateKeyData) == 0 ||
-		len(config.TLS.CertificateChainData) == 0 {
-		return t
+	if config.TLS.Enabled {
+		if !t.load() {
+			return nil
+		}
+		t.setCertFileTime()
+	}
+	return t
+}
+
+func (t *TLSMod) load() bool {
+	if !tlsLoadConfig(&config.TLS, &config.TLS.tlsConfigStatus) {
+		return false
 	}
 
 	// validate current TLS config and update warnings (it could have been loaded from file)
 	data := validateCertificates(string(config.TLS.CertificateChainData), string(config.TLS.PrivateKeyData), config.TLS.ServerName)
 	if !data.ValidPair {
 		log.Error(data.WarningValidation)
-		return nil
+		return false
 	}
 	config.TLS.tlsConfigStatus = data // update warnings
-
-	t.setCertFileTime()
-	return t
+	return true
 }
 
 // Close - close module
@@ -63,6 +68,9 @@ func (t *TLSMod) WriteDiskConfig(conf *tlsConfig) {
 }
 
 func (t *TLSMod) setCertFileTime() {
+	if len(config.TLS.CertificatePath) == 0 {
+		return
+	}
 	fi, err := os.Stat(config.TLS.CertificatePath)
 	if err != nil {
 		log.Error("TLS: %s", err)
@@ -77,14 +85,23 @@ func (t *TLSMod) Start() {
 		tlsWebHandlersRegistered = true
 		t.registerWebHandlers()
 	}
+
+	config.Lock()
+	tlsConf := config.TLS
+	config.Unlock()
+	Context.web.TLSConfigChanged(tlsConf)
 }
 
-// Reload - reload the module's configuration
+// Reload - reload certificate file
 func (t *TLSMod) Reload() {
-	if len(config.TLS.CertificatePath) == 0 {
+	config.Lock()
+	tlsConf := config.TLS
+	config.Unlock()
+
+	if !tlsConf.Enabled || len(tlsConf.CertificatePath) == 0 {
 		return
 	}
-	fi, err := os.Stat(config.TLS.CertificatePath)
+	fi, err := os.Stat(tlsConf.CertificatePath)
 	if err != nil {
 		log.Error("TLS: %s", err)
 		return
@@ -94,9 +111,16 @@ func (t *TLSMod) Reload() {
 		return
 	}
 	log.Debug("TLS: certificate file is modified")
+
+	config.Lock()
+	if !t.load() {
+		config.Unlock()
+		return
+	}
+	config.Unlock()
+
 	t.certLastMod = fi.ModTime().UTC()
 
-	tlsConf := config.TLS
 	_ = reconfigureDNSServer()
 	Context.web.TLSConfigChanged(tlsConf)
 }

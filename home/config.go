@@ -221,12 +221,6 @@ func parseConfig() error {
 		config.DNS.FiltersUpdateIntervalHours = 24
 	}
 
-	status := tlsConfigStatus{}
-	if !tlsLoadConfig(&config.TLS, &status) {
-		log.Error("%s", status.WarningValidation)
-		return err
-	}
-
 	return nil
 }
 

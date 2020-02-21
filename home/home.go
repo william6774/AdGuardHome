@@ -251,7 +251,6 @@ func run(args options) {
 	if Context.web == nil {
 		log.Fatalf("Can't initialize Web module")
 	}
-	Context.web.TLSConfigChanged(config.TLS)
 
 	if !Context.firstRun {
 		err := initDNSServer()

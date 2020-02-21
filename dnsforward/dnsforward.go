@@ -611,6 +611,7 @@ func processUpstream(ctx *dnsContext) int {
 }
 
 // Apply filtering logic after we have received response from upstream servers
+// nolint (gocyclo)
 func processFilteringAfterResponse(ctx *dnsContext) int {
 	s := ctx.srv
 	d := ctx.proxyCtx

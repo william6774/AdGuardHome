@@ -510,6 +510,7 @@ type dnsContext struct {
 	err                  error        // error returned from the module
 	protectionEnabled    bool         // filtering is enabled, dnsfilter object is ready
 	responseFromUpstream bool         // response is received from upstream servers
+	origReqDNSSEC        bool         // DNSSEC flag in the original request from user
 }
 
 const (
@@ -591,8 +592,10 @@ func processUpstream(ctx *dnsContext) int {
 		if opt == nil {
 			log.Debug("DNS: Adding OPT record with DNSSEC flag")
 			d.Req.SetEdns0(4096, true)
-		} else {
+		} else if !opt.Do() {
 			opt.SetDo(true)
+		} else {
+			ctx.origReqDNSSEC = true
 		}
 	}
 
@@ -616,6 +619,41 @@ func processFilteringAfterResponse(ctx *dnsContext) int {
 
 	if !ctx.responseFromUpstream {
 		return resultDone // don't process response if it's not from upstream servers
+	}
+
+	optResp := d.Res.IsEdns0()
+	if optResp != nil && optResp.Do() {
+		optReq := d.Req.IsEdns0()
+		if optReq != nil && !optReq.Do() {
+			// remove DNSSEC flag from response, because there's no DNSSEC flag in request,
+			//  but querylog module needs this value to be accurate
+			optResp.SetDo(false)
+		}
+	}
+	if s.conf.EnableDNSSEC && !ctx.origReqDNSSEC && optResp != nil && optResp.Do() {
+		// remove RRSIG records from response
+
+		answers := []dns.RR{}
+		for _, a := range d.Res.Answer {
+			switch a.(type) {
+			case *dns.RRSIG:
+				log.Debug("Removing RRSIG record from response: %v", a)
+			default:
+				answers = append(answers, a)
+			}
+		}
+		d.Res.Answer = answers
+
+		answers = []dns.RR{}
+		for _, a := range d.Res.Ns {
+			switch a.(type) {
+			case *dns.RRSIG:
+				log.Debug("Removing RRSIG record from response: %v", a)
+			default:
+				answers = append(answers, a)
+			}
+		}
+		d.Res.Ns = answers
 	}
 
 	if res.Reason == dnsfilter.ReasonRewrite && len(res.CanonName) != 0 {
@@ -702,8 +740,12 @@ func (s *Server) handleDNSRequest(p *proxy.Proxy, d *proxy.DNSContext) error {
 	for _, process := range mods {
 		r := process(ctx)
 		switch r {
+		case resultDone:
+			// continue: call the next filter
+
 		case resultFinish:
 			return nil
+
 		case resultError:
 			return ctx.err
 		}
